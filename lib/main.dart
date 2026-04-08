@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:confetti/confetti.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -68,7 +69,7 @@ class TelaPagamentoPix extends StatelessWidget {
   Future<Map<String, dynamic>> _gerarPix() async {
     // Exemplo de chamada ao backend que retorna {qrCodeImageUrl, copiaECola}
     // Substitua pela URL real do seu backend
-    final url = Uri.parse('https://seu-backend.com/api/pix');
+    final url = Uri.parse('https://paz-backend.onrender.com');
     final response = await http.post(url, body: jsonEncode({
       'valor': valor,
       'inscricaoId': inscricaoId,
@@ -141,6 +142,7 @@ class TelaPagamentoPix extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('pt_BR', null);
   try {
     if (kIsWeb) {
       await Firebase.initializeApp(
@@ -370,7 +372,7 @@ class TelaInicio extends StatelessWidget {
             Wrap(spacing: 15, runSpacing: 15, children: [
               _atBtn(context, Icons.event, "Agenda", Colors.cyan, () => onNavigate(2)),
               _atBtn(context, Icons.groups_3, "Célula", Colors.blueAccent, () => Navigator.push(context, MaterialPageRoute(builder: (c)=>const TelaHubCelula()))),
-              _atBtn(context, Icons.mail, "Contato", Colors.lime, () => launchUrl(Uri.parse("mailto:contato@pazcastanhal.com"))),
+              _atBtn(context, Icons.chat, "Contato", Colors.lime, () => launchUrl(Uri.parse("https://wa.me/5591988629296"), mode: LaunchMode.externalApplication)),
               _atBtn(context, Icons.school, "Cursos", Colors.orangeAccent, () => launchUrl(Uri.parse("https://pazbibleschool.com"), mode: LaunchMode.inAppBrowserView)),
               _atBtn(context, Icons.auto_stories, "Devocional", Colors.indigoAccent, () => Navigator.push(context, MaterialPageRoute(builder: (c)=>const TelaListaDoc(coll: 'devocionais', title: 'Devocionais')))),
               _atBtn(context, Icons.assignment, "Inscrições", Colors.teal, () => Navigator.push(context, MaterialPageRoute(builder: (c)=>const TelaInscricoes()))),
@@ -409,7 +411,7 @@ class TelaAgendaPro extends StatelessWidget {
       backgroundColor: Colors.transparent,
       appBar: AppBar(title: const Text("Agenda"), backgroundColor: Colors.transparent),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('eventos').orderBy('timestamp').snapshots(),
+        stream: FirebaseFirestore.instance.collection('agenda').orderBy('timestamp').snapshots(),
         builder: (context, snap) {
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           return ListView.builder(
@@ -418,17 +420,40 @@ class TelaAgendaPro extends StatelessWidget {
             itemBuilder: (context, i) {
               var ev = snap.data!.docs[i].data() as Map? ?? {};
               if (ev.isEmpty) return const SizedBox.shrink();
+              // Extrair dia e mês de dataEvento
+              String dia = "";
+              String mes = "";
+              if (ev['dataEvento'] != null && ev['dataEvento'] is Timestamp) {
+                final DateTime dt = (ev['dataEvento'] as Timestamp).toDate();
+                dia = dt.day.toString().padLeft(2, '0');
+                mes = DateFormat.MMM('pt_BR').format(dt).toUpperCase();
+              }
               return _GlassCard(child: Row(children: [
                 Column(children: [
-                  Text(ev['dia']?.toString() ?? "00", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                  Text((ev['mes']?.toString() ?? "MES").toUpperCase(), style: const TextStyle(fontSize: 12)),
+                  Text(dia.isNotEmpty ? dia : "--", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                  Text(mes.isNotEmpty ? mes : "MES", style: const TextStyle(fontSize: 12)),
                 ]),
                 const SizedBox(width: 20),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(ev['titulo']?.toString() ?? "Evento", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-                  Text(ev['hora']?.toString() ?? "", style: const TextStyle(color: Colors.amber)),
-                ])),
-                IconButton(icon: const Icon(Icons.share, size: 20), onPressed: () => Share.share("Convidamos você: ${ev['titulo']?.toString() ?? 'Evento'} em ${ev['dia']?.toString() ?? ''}/${ev['mes']?.toString() ?? ''}"))
+                Expanded(child: Builder(
+                  builder: (context) {
+                    final valorStr = ev['valor'] != null ? ev['valor'].toString() : '';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(ev['titulo']?.toString() ?? "Evento", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+                        Text(ev['hora']?.toString() ?? "", style: const TextStyle(color: Colors.amber)),
+                        if (valorStr.isNotEmpty)
+                          Text("Valor: R\$${valorStr}", style: const TextStyle(color: Colors.greenAccent, fontSize: 14)),
+                      ],
+                    );
+                  },
+                )),
+                IconButton(
+                  icon: const Icon(Icons.share, size: 20),
+                  onPressed: () => Share.share(
+                    "Convidamos você: ${ev['titulo']?.toString() ?? 'Evento'} em ${dia}/${mes} às ${ev['hora']?.toString() ?? ''}"
+                  ),
+                )
               ]));
             },
           );
@@ -898,7 +923,7 @@ class TelaLoja extends StatelessWidget {
   const TelaLoja({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Loja Paz")), body: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
-    _AdsBanner(title: "Livros do Pr. Francinaldo", url: "https://francinaldopaz.com"),
+    _AdsBanner(title: "Livros do Pr. Francinaldo", url: "https://share.google/To7MjnzASZFSbiNDE"),
     const SizedBox(height: 20),
     GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, mainAxisSpacing: 15, crossAxisSpacing: 15, childAspectRatio: 0.7, children: [
       _p(context, "Livro do Discípulo", "R\$ 25,00", "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400"),
@@ -1602,9 +1627,19 @@ class TelaInscricoes extends StatelessWidget {
             itemBuilder: (context, i) {
               final d = docs[i].data() as Map<String, dynamic>;
               final nome = d['nome'] ?? 'Evento';
-              final dataEvento = d['data_evento'] ?? '';
-              final dataLimite = d['data_limite'] ?? '';
-              final valor = d['valor'] != null ? double.tryParse(d['valor'].toString()) ?? 0.0 : 0.0;
+              final dataEvento = d['data_evento'];
+              final dataLimite = d['data_limite'];
+              final valor = d['valor'] != null ? double.tryParse(d['valor'].toString().replaceAll(',', '.')) ?? 0.0 : 0.0;
+              String? dataEventoStr;
+              String? dataLimiteStr;
+              if (dataEvento != null && dataEvento is Timestamp) {
+                final dt = dataEvento.toDate();
+                dataEventoStr = DateFormat('dd/MM/yyyy').format(dt);
+              }
+              if (dataLimite != null && dataLimite is Timestamp) {
+                final dt = dataLimite.toDate();
+                dataLimiteStr = DateFormat('dd/MM/yyyy').format(dt);
+              }
               return Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: ListTile(
@@ -1612,10 +1647,9 @@ class TelaInscricoes extends StatelessWidget {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (dataEvento.isNotEmpty) Text('Data do evento: $dataEvento', style: const TextStyle(color: Colors.white70)),
-                      if (dataLimite.isNotEmpty) Text('Inscrições até: $dataLimite', style: const TextStyle(color: Colors.white70)),
+                      if (dataEventoStr != null) Text('Data do evento: $dataEventoStr', style: const TextStyle(color: Colors.white70)),
+                      if (dataLimiteStr != null) Text('Inscrições até: $dataLimiteStr', style: const TextStyle(color: Colors.white70)),
                       if (valor > 0) Text('Valor: R\$ ${valor.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70)),
-                      QRMembroWidget(),
                     ],
                   ),
                   trailing: valor > 0
